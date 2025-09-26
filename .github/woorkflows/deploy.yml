@@ -1,0 +1,73 @@
+# .github/workflows/deploy.yml
+name: CI/CD to AWS EC2 via ECR and SSM
+
+# Controls when the workflow will run
+on:
+  push:
+    # Triggers on pushes to the 'main' branch
+    branches:
+      - main
+
+# Define a single job that runs on the latest Ubuntu runner
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    # Define environment variables using the GitHub Variables you set
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY_NAME }}
+      EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      # Create a unique tag for the image using the GitHub run number
+      IMAGE_TAG: ${{ github.run_number }}
+      # This is the full image URL. e.g., 123456789012.dkr.ecr.eu-north-1.amazonaws.com/my-rsi-bot:1
+      FULL_IMAGE_NAME: ${{ vars.ECR_REGISTRY_ID }}/${{ vars.ECR_REPOSITORY_NAME }}:${{ github.run_number }}
+
+    steps:
+      # --- PHASE 1: Checkout Code and Configure AWS Credentials ---
+      
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Use the Secrets you created for authentication
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # --- PHASE 2: Build and Push Docker Image to ECR ---
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        
+      - name: Build, tag, and push image to Amazon ECR
+        run: |
+          # 1. Build the Docker image from the Dockerfile in the root directory
+          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+          
+          # 2. Tag the image with the full ECR registry path and the unique tag
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG $FULL_IMAGE_NAME
+          
+          # 3. Push the image to ECR
+          echo "Pushing $FULL_IMAGE_NAME to ECR..."
+          docker push $FULL_IMAGE_NAME
+
+      # --- PHASE 3: Deploy to EC2 via SSM Run Command ---
+
+      - name: Deploy new image via SSM Run Command
+        run: |
+          echo "Sending deployment command to EC2 instance: ${{ env.EC2_INSTANCE_ID }}"
+          
+          # The command passes the full ECR URI to the deployment script
+          aws ssm send-command \
+            --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Update RSI Bot to image ${{ env.FULL_IMAGE_NAME }}" \
+            --parameters commands="sudo /opt/deploy-rsi-bot.sh ${{ env.FULL_IMAGE_NAME }}" \
+            --region ${{ env.AWS_REGION }}
+          
+          echo "SSM Command sent successfully. Check SSM Command History for status."
+
