@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, BigInteger, DateTime
 from sqlalchemy.sql import func
 from ..session import Base
+from sqlalchemy.orm import relationship
 
 class User(Base):
     __tablename__ = "users"
@@ -8,3 +9,4 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     telegram_id = Column(BigInteger, unique=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    symbols = relationship("UserSymbol", back_populates="user", cascade="all, delete-orphan")
