@@ -6,5 +6,6 @@ class Setting(Base):
     __tablename__ = "settings"
 
     id = Column(Integer, primary_key=True, index=True)
-    rsi_threshold = Column(Integer, nullable=False, default=30)
+    rsi_oversold_threshold = Column(Integer, nullable=False, default=30)
+    rsi_overbought_threshold = Column(Integer, nullable=False, default=70)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

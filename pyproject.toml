@@ -8,4 +8,8 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "python-telegram-bot>=22.4",
     "sqlalchemy>=2.0.43",
+    "requests>=2.31.0",
+    "numpy>=1.24.0",
+    "websockets>=12.0",
+    "aiohttp>=3.9.0",
 ]
